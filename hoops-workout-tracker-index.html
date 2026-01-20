@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball Shooting Tracker</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const CheckIcon = () => (
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+        );
+
+        const XIcon = () => (
+            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        );
+
+        const CalendarIcon = () => (
+            <svg className="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+        );
+
+        const TrendingUpIcon = () => (
+            <svg className="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+        );
+
+        const BasketballShootingTracker = () => {
+            const [activeSession, setActiveSession] = useState(null);
+            const [view, setView] = useState('workout');
+            const [workoutHistory, setWorkoutHistory] = useState([]);
+            const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+
+            const workoutTemplate = {
+                warmup: [
+                    { name: 'Ball Handling', completed: false },
+                    { name: 'Extension Layups (10 makes)', completed: false },
+                    { name: 'Form Shooting (15 makes)', completed: false },
+                    { name: 'Free Throws (4 makes)', completed: false }
+                ],
+                midrange: [
+                    { name: 'FT Line KD Footwork', makes: 0, attempts: 20 },
+                    { name: 'Lateral Slide Jumpers', makes: 0, attempts: 10 },
+                    { name: 'Downhill Pull-ups', makes: 0, attempts: 20 }
+                ],
+                freeThrows1: { name: 'Free Throws (4 makes)', completed: false },
+                threePointers: [
+                    { name: 'Top of Key C&S', makes: 0, attempts: 20 },
+                    { name: 'Wing 3s C&S', makes: 0, attempts: 20 },
+                    { name: 'Dribble Pull-up 3s', makes: 0, attempts: 10 }
+                ],
+                freeThrows2: { name: 'Free Throws (2 makes)', completed: false }
+            };
+
+            useEffect(() => {
+                loadHistory();
+            }, []);
+
+            const loadHistory = () => {
+                const saved = localStorage.getItem('basketballWorkouts');
+                if (saved) {
+                    setWorkoutHistory(JSON.parse(saved));
+                }
+            };
+
+            const startWorkout = () => {
+                setActiveSession({
+                    date: new Date().toISOString(),
+                    ...JSON.parse(JSON.stringify(workoutTemplate))
+                });
+            };
+
+            const toggleWarmup = (index) => {
+                const updated = { ...activeSession };
+                updated.warmup[index].completed = !updated.warmup[index].completed;
+                setActiveSession(updated);
+            };
+
+            const toggleFreeThrows = (section) => {
+                const updated = { ...activeSession };
+                updated[section].completed = !updated[section].completed;
+                setActiveSession(updated);
+            };
+
+            const incrementMakes = (section, index) => {
+                const updated = { ...activeSession };
+                if (updated[section][index].makes < updated[section][index].attempts) {
+                    updated[section][index].makes++;
+                }
+                setActiveSession(updated);
+            };
+
+            const decrementMakes = (section, index) => {
+                const updated = { ...activeSession };
+                if (updated[section][index].makes > 0) {
+                    updated[section][index].makes--;
+                }
+                setActiveSession(updated);
+            };
+
+            const saveWorkout = () => {
+                const updated = [...workoutHistory, activeSession].sort((a, b) => 
+                    new Date(b.date) - new Date(a.date)
+                );
+                localStorage.setItem('basketballWorkouts', JSON.stringify(updated));
+                setWorkoutHistory(updated);
+                setActiveSession(null);
+                alert('Workout saved successfully!');
+            };
+
+            const calculatePercentage = (makes, attempts) => {
+                if (attempts === 0) return 0;
+                return ((makes / attempts) * 100).toFixed(1);
+            };
+
+            const getMonthlyStats = () => {
+                const monthWorkouts = workoutHistory.filter(w => 
+                    w.date.startsWith(selectedMonth)
+                );
+
+                if (monthWorkouts.length === 0) return null;
+
+                const stats = {
+                    totalWorkouts: monthWorkouts.length,
+                    midrange: { makes: 0, attempts: 0 },
+                    threePointers: { makes: 0, attempts: 0 }
+                };
+
+                monthWorkouts.forEach(workout => {
+                    workout.midrange.forEach(drill => {
+                        stats.midrange.makes += drill.makes;
+                        stats.midrange.attempts += drill.attempts;
+                    });
+                    workout.threePointers.forEach(drill => {
+                        stats.threePointers.makes += drill.makes;
+                        stats.threePointers.attempts += drill.attempts;
+                    });
+                });
+
+                return stats;
+            };
+
+            const renderWorkoutSession = () => (
+                <div className="space-y-6">
+                    <div className="bg-white rounded-lg shadow p-4">
+                        <h2 className="text-xl font-bold mb-4 text-gray-800">Warm-up</h2>
+                        {activeSession.warmup.map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between py-3 border-b last:border-b-0">
+                                <span className="text-gray-700">{item.name}</span>
+                                <button
+                                    onClick={() => toggleWarmup(idx)}
+                                    className={`p-2 rounded ${item.completed ? 'bg-green-500' : 'bg-gray-300'}`}
+                                >
+                                    {item.completed ? <CheckIcon /> : <XIcon />}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow p-4">
+                        <h2 className="text-xl font-bold mb-4 text-gray-800">Midrange</h2>
+                        {activeSession.midrange.map((drill, idx) => (
+                            <div key={idx} className="mb-4 pb-4 border-b last:border-b-0">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="font-semibold text-gray-700">{drill.name}</span>
+                                    <span className="text-sm text-gray-600">{drill.makes}/{drill.attempts} ({calculatePercentage(drill.makes, drill.attempts)}%)</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => decrementMakes('midrange', idx)}
+                                        className="flex-1 bg-red-500 text-white py-4 rounded font-bold text-xl"
+                                    >
+                                        -
+                                    </button>
+                                    <button
+                                        onClick={() => incrementMakes('midrange', idx)}
+                                        className="flex-1 bg-green-500 text-white py-4 rounded font-bold text-xl"
+                                    >
+                                        MAKE
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                        <div className="flex items-center justify-between py-3 mt-4 border-t">
+                            <span className="text-gray-700">{activeSession.freeThrows1.name}</span>
+                            <button
+                                onClick={() => toggleFreeThrows('freeThrows1')}
+                                className={`p-2 rounded ${activeSession.freeThrows1.completed ? 'bg-green-500' : 'bg-gray-300'}`}
+                            >
+                                {activeSession.freeThrows1.completed ? <CheckIcon /> : <XIcon />}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow p-4">
+                        <h2 className="text-xl font-bold mb-4 text-gray-800">3-Pointers</h2>
+                        {activeSession.threePointers.map((drill, idx) => (
+                            <div key={idx} className="mb-4 pb-4 border-b last:border-b-0">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="font-semibold text-gray-700">{drill.name}</span>
+                                    <span className="text-sm text-gray-600">{drill.makes}/{drill.attempts} ({calculatePercentage(drill.makes, drill.attempts)}%)</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => decrementMakes('threePointers', idx)}
+                                        className="flex-1 bg-red-500 text-white py-4 rounded font-bold text-xl"
+                                    >
+                                        -
+                                    </button>
+                                    <button
+                                        onClick={() => incrementMakes('threePointers', idx)}
+                                        className="flex-1 bg-green-500 text-white py-4 rounded font-bold text-xl"
+                                    >
+                                        MAKE
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                        <div className="flex items-center justify-between py-3 mt-4 border-t">
+                            <span className="text-gray-700">{activeSession.freeThrows2.name}</span>
+                            <button
+                                onClick={() => toggleFreeThrows('freeThrows2')}
+                                className={`p-2 rounded ${activeSession.freeThrows2.completed ? 'bg-green-500' : 'bg-gray-300'}`}
+                            >
+                                {activeSession.freeThrows2.completed ? <CheckIcon /> : <XIcon />}
+                            </button>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={saveWorkout}
+                        className="w-full bg-blue-600 text-white py-4 rounded-lg font-bold text-lg"
+                    >
+                        Save Workout
+                    </button>
+                </div>
+            );
+
+            const renderHistory = () => (
+                <div className="space-y-4">
+                    <h2 className="text-2xl font-bold text-gray-800">Workout History</h2>
+                    {workoutHistory.length === 0 ? (
+                        <p className="text-gray-600">No workouts logged yet.</p>
+                    ) : (
+                        workoutHistory.map((workout, idx) => {
+                            const date = new Date(workout.date).toLocaleDateString();
+                            const midrangeTotals = workout.midrange.reduce((acc, d) => ({
+                                makes: acc.makes + d.makes,
+                                attempts: acc.attempts + d.attempts
+                            }), { makes: 0, attempts: 0 });
+                            const threeTotals = workout.threePointers.reduce((acc, d) => ({
+                                makes: acc.makes + d.makes,
+                                attempts: acc.attempts + d.attempts
+                            }), { makes: 0, attempts: 0 });
+
+                            return (
+                                <div key={idx} className="bg-white rounded-lg shadow p-4">
+                                    <div className="font-bold text-lg mb-2">{date}</div>
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                        <div>
+                                            <div className="text-gray-600">Midrange</div>
+                                            <div className="font-semibold">{midrangeTotals.makes}/{midrangeTotals.attempts} ({calculatePercentage(midrangeTotals.makes, midrangeTotals.attempts)}%)</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-gray-600">3-Pointers</div>
+                                            <div className="font-semibold">{threeTotals.makes}/{threeTotals.attempts} ({calculatePercentage(threeTotals.makes, threeTotals.attempts)}%)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            );
+
+            const renderMonthlyReport = () => {
+                const stats = getMonthlyStats();
+                
+                return (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 mb-4">
+                            <label className="font-semibold">Select Month:</label>
+                            <input
+                                type="month"
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value)}
+                                className="border rounded px-3 py-2"
+                            />
+                        </div>
+
+                        {!stats ? (
+                            <p className="text-gray-600">No workouts for this month.</p>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="bg-white rounded-lg shadow p-4">
+                                    <h3 className="text-xl font-bold mb-2">Total Workouts: {stats.totalWorkouts}</h3>
+                                </div>
+
+                                <div className="bg-white rounded-lg shadow p-4">
+                                    <h3 className="text-lg font-bold mb-3">Midrange Shooting</h3>
+                                    <div className="text-3xl font-bold text-blue-600 mb-2">
+                                        {calculatePercentage(stats.midrange.makes, stats.midrange.attempts)}%
+                                    </div>
+                                    <div className="text-gray-600">
+                                        {stats.midrange.makes}/{stats.midrange.attempts} makes
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-lg shadow p-4">
+                                    <h3 className="text-lg font-bold mb-3">3-Point Shooting</h3>
+                                    <div className="text-3xl font-bold text-green-600 mb-2">
+                                        {calculatePercentage(stats.threePointers.makes, stats.threePointers.attempts)}%
+                                    </div>
+                                    <div className="text-gray-600">
+                                        {stats.threePointers.makes}/{stats.threePointers.attempts} makes
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-100 p-4">
+                    <div className="max-w-2xl mx-auto">
+                        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">Basketball Shooting Tracker</h1>
+
+                        {!activeSession && (
+                            <div className="mb-6 flex gap-2">
+                                <button
+                                    onClick={() => setView('workout')}
+                                    className={`flex-1 py-2 rounded ${view === 'workout' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
+                                >
+                                    New Workout
+                                </button>
+                                <button
+                                    onClick={() => setView('history')}
+                                    className={`flex-1 py-2 rounded ${view === 'history' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
+                                >
+                                    <CalendarIcon />
+                                    History
+                                </button>
+                                <button
+                                    onClick={() => setView('monthly')}
+                                    className={`flex-1 py-2 rounded ${view === 'monthly' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
+                                >
+                                    <TrendingUpIcon />
+                                    Monthly
+                                </button>
+                            </div>
+                        )}
+
+                        {activeSession ? (
+                            renderWorkoutSession()
+                        ) : view === 'workout' ? (
+                            <div className="bg-white rounded-lg shadow p-8 text-center">
+                                <button
+                                    onClick={startWorkout}
+                                    className="bg-blue-600 text-white px-8 py-4 rounded-lg font-bold text-xl"
+                                >
+                                    Start Today's Workout
+                                </button>
+                            </div>
+                        ) : view === 'history' ? (
+                            renderHistory()
+                        ) : (
+                            renderMonthlyReport()
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<BasketballShootingTracker />);
+    </script>
+</body>
+</html>
