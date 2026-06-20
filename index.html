@@ -61,6 +61,10 @@
     .green { color: #16a34a; }
     .sub-stat { color: #6b7280; font-size: 0.9rem; }
 
+    /* Export button */
+    .btn-export { display:inline-block; margin-bottom:16px; padding:8px 16px; border:none; border-radius:6px; background:#2563eb; color:#fff; font-size:0.9rem; font-weight:600; cursor:pointer; }
+    .btn-export:hover { background:#1d4ed8; }
+
     /* FT section inside drill card */
     .ft-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; margin-top: 16px; border-top: 1px solid #e5e7eb; }
   </style>
@@ -133,7 +137,9 @@ function checkIcon(done) {
 function render() {
   const app = document.getElementById('app');
   app.innerHTML = buildHTML();
-  attachEvents();
+  // Re-attach month picker change handler (it's on a new input element each render)
+  const mp = document.getElementById('monthPicker');
+  if (mp) mp.addEventListener('change', e => { state.selectedMonth = e.target.value; render(); });
 }
 
 function buildHTML() {
@@ -228,10 +234,13 @@ function buildSession() {
 }
 
 function buildHistory() {
+  const exportBtn = state.history.length
+    ? `<button class="btn-export" data-action="exportCSV">⬇ Export to CSV</button>`
+    : '';
   if (!state.history.length) {
     return `<p class="empty-msg">No workouts logged yet.</p>`;
   }
-  return state.history.map(w => {
+  const items = state.history.map(w => {
     const mr = w.midrange.reduce((a, d) => ({ makes: a.makes + d.makes, attempts: a.attempts + d.attempts }), { makes: 0, attempts: 0 });
     const tr = w.threes.reduce((a, d) => ({ makes: a.makes + d.makes, attempts: a.attempts + d.attempts }), { makes: 0, attempts: 0 });
     return `
@@ -243,6 +252,48 @@ function buildHistory() {
         </div>
       </div>`;
   }).join('');
+  return exportBtn + items;
+}
+
+function exportCSV() {
+  const headers = [
+    'Date',
+    'FT Line KD Makes', 'FT Line KD Attempts', 'FT Line KD %',
+    'Lateral Slide Makes', 'Lateral Slide Attempts', 'Lateral Slide %',
+    'Downhill Pull-ups Makes', 'Downhill Pull-ups Attempts', 'Downhill Pull-ups %',
+    'Total Midrange Makes', 'Total Midrange Attempts', 'Total Midrange %',
+    'Top of Key C&S Makes', 'Top of Key C&S Attempts', 'Top of Key C&S %',
+    'Wing 3s C&S Makes', 'Wing 3s C&S Attempts', 'Wing 3s C&S %',
+    'Dribble Pull-up 3s Makes', 'Dribble Pull-up 3s Attempts', 'Dribble Pull-up 3s %',
+    'Total 3PT Makes', 'Total 3PT Attempts', 'Total 3PT %'
+  ];
+
+  const rows = [...state.history].reverse().map(w => {
+    const mr = w.midrange.reduce((a, d) => ({ makes: a.makes + d.makes, attempts: a.attempts + d.attempts }), { makes: 0, attempts: 0 });
+    const tr = w.threes.reduce((a, d) => ({ makes: a.makes + d.makes, attempts: a.attempts + d.attempts }), { makes: 0, attempts: 0 });
+    const d = w.midrange;
+    const t = w.threes;
+    return [
+      fmtDate(w.date),
+      d[0].makes, d[0].attempts, pct(d[0].makes, d[0].attempts),
+      d[1].makes, d[1].attempts, pct(d[1].makes, d[1].attempts),
+      d[2].makes, d[2].attempts, pct(d[2].makes, d[2].attempts),
+      mr.makes, mr.attempts, pct(mr.makes, mr.attempts),
+      t[0].makes, t[0].attempts, pct(t[0].makes, t[0].attempts),
+      t[1].makes, t[1].attempts, pct(t[1].makes, t[1].attempts),
+      t[2].makes, t[2].attempts, pct(t[2].makes, t[2].attempts),
+      tr.makes, tr.attempts, pct(tr.makes, tr.attempts)
+    ].join(',');
+  });
+
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `shooting-tracker-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function buildMonthly() {
@@ -280,12 +331,8 @@ function buildMonthly() {
     ${statsBlock}`;
 }
 
-// ─── Events ──────────────────────────────────────────────────────────────────
+// ─── Events (attached once at boot, not on every render) ─────────────────────
 function attachEvents() {
-  // Month picker (outside delegation since it's an input change)
-  const mp = document.getElementById('monthPicker');
-  if (mp) mp.addEventListener('change', e => { state.selectedMonth = e.target.value; render(); });
-
   document.getElementById('app').addEventListener('click', e => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
@@ -321,6 +368,8 @@ function attachEvents() {
       render();
     }
 
+    else if (action === 'exportCSV') { exportCSV(); }
+
     else if (action === 'save') {
       state.history = [state.session, ...state.history].sort((a, b) => new Date(b.date) - new Date(a.date));
       saveHistory();
@@ -339,7 +388,8 @@ function attachEvents() {
 
 // ─── Boot ────────────────────────────────────────────────────────────────────
 loadHistory();
-render();
+render();        // build initial DOM first
+attachEvents();  // then attach listener once — works for all future renders too
 </script>
 </body>
 </html>
