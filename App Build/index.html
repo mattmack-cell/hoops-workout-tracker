@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Basketball Shooting Tracker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f4f6; min-height: 100vh; }
+    #app { max-width: 640px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 1.75rem; font-weight: 700; text-align: center; margin-bottom: 24px; color: #1f2937; }
+    h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 16px; color: #1f2937; }
+    h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 12px; color: #1f2937; }
+
+    /* Nav tabs */
+    .tabs { display: flex; gap: 8px; margin-bottom: 24px; }
+    .tab { flex: 1; padding: 8px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500; background: #fff; color: #374151; }
+    .tab.active { background: #2563eb; color: #fff; }
+
+    /* Cards */
+    .card { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 16px; margin-bottom: 16px; }
+
+    /* Warmup rows */
+    .warmup-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e5e7eb; }
+    .warmup-row:last-child { border-bottom: none; }
+    .warmup-row span { color: #374151; }
+    .check-btn { width: 40px; height: 40px; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+    .check-btn.done { background: #22c55e; color: #fff; }
+    .check-btn.todo { background: #d1d5db; color: #6b7280; }
+
+    /* Drill rows */
+    .drill { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb; }
+    .drill:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .drill-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .drill-name { font-weight: 600; color: #374151; }
+    .drill-stat { font-size: 0.85rem; color: #6b7280; }
+    .drill-btns { display: flex; gap: 8px; }
+    .miss-btn { flex: 1; padding: 16px; border: none; border-radius: 6px; background: #ef4444; color: #fff; font-size: 1.25rem; font-weight: 700; cursor: pointer; }
+    .make-btn { flex: 1; padding: 16px; border: none; border-radius: 6px; background: #22c55e; color: #fff; font-size: 1rem; font-weight: 700; cursor: pointer; }
+    .miss-btn:active, .make-btn:active, .check-btn:active { opacity: 0.8; }
+
+    /* Save / Start buttons */
+    .btn-primary { width: 100%; padding: 16px; border: none; border-radius: 10px; background: #2563eb; color: #fff; font-size: 1.1rem; font-weight: 700; cursor: pointer; margin-top: 8px; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .start-wrap { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 48px 16px; text-align: center; }
+
+    /* History */
+    .history-item { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 16px; margin-bottom: 12px; }
+    .history-date { font-weight: 700; font-size: 1rem; margin-bottom: 8px; color: #1f2937; }
+    .history-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 0.9rem; }
+    .history-label { color: #6b7280; margin-bottom: 2px; }
+    .history-val { font-weight: 600; color: #1f2937; }
+    .empty-msg { color: #6b7280; padding: 16px 0; }
+
+    /* Monthly */
+    .month-picker { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .month-picker label { font-weight: 600; }
+    .month-picker input { border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 10px; font-size: 0.9rem; }
+    .big-pct { font-size: 2rem; font-weight: 700; margin-bottom: 4px; }
+    .blue { color: #2563eb; }
+    .green { color: #16a34a; }
+    .sub-stat { color: #6b7280; font-size: 0.9rem; }
+
+    /* Export button */
+    .btn-export { display:inline-block; margin-bottom:16px; padding:8px 16px; border:none; border-radius:6px; background:#2563eb; color:#fff; font-size:0.9rem; font-weight:600; cursor:pointer; }
+    .btn-export:hover { background:#1d4ed8; }
+
+    /* FT section inside drill card */
+    .ft-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; margin-top: 16px; border-top: 1px solid #e5e7eb; }
+
+    /* History edit/delete buttons */
+    .history-action-btn { padding: 4px 12px; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    .edit-btn { background: #dbeafe; color: #1d4ed8; }
+    .edit-btn:hover { background: #bfdbfe; }
+    .delete-btn { background: #fee2e2; color: #b91c1c; }
+    .delete-btn:hover { background: #fecaca; }
+  </style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+const TEMPLATE = () => ({
+  date: new Date().toISOString(),
+  warmup: [
+    { name: 'Ball Handling', done: false },
+    { name: 'Extension Layups (10 makes)', done: false },
+    { name: 'Form Shooting (15 makes)', done: false },
+    { name: 'Free Throws (4 makes)', done: false }
+  ],
+  midrange: [
+    { name: 'FT Line KD Footwork', makes: 0, attempts: 20 },
+    { name: 'Lateral Slide Jumpers', makes: 0, attempts: 10 },
+    { name: 'Downhill Pull-ups', makes: 0, attempts: 20 }
+  ],
+  ft1: { name: 'Free Throws (4 makes)', done: false },
+  threes: [
+    { name: 'Top of Key C&S', makes: 0, attempts: 20 },
+    { name: 'Wing 3s C&S', makes: 0, attempts: 20 },
+    { name: 'Dribble Pull-up 3s', makes: 0, attempts: 10 }
+  ],
+  ft2: { name: 'Free Throws (2 makes)', done: false }
+});
+
+let state = {
+  view: 'workout',           // 'workout' | 'history' | 'monthly'
+  session: null,             // null or TEMPLATE()
+  editingIndex: null,        // index in history being edited, or null
+  history: [],
+  selectedMonth: new Date().toISOString().slice(0, 7)
+};
+
+// ─── Persistence ─────────────────────────────────────────────────────────────
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem('basketballWorkouts');
+    if (raw) state.history = JSON.parse(raw);
+  } catch(e) {}
+}
+
+function saveHistory() {
+  try {
+    localStorage.setItem('basketballWorkouts', JSON.stringify(state.history));
+  } catch(e) {}
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function pct(makes, attempts) {
+  if (!attempts) return '0.0';
+  return ((makes / attempts) * 100).toFixed(1);
+}
+
+function fmtDate(iso) {
+  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function checkIcon(done) {
+  return done
+    ? `<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`
+    : `<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>`;
+}
+
+// ─── Render ──────────────────────────────────────────────────────────────────
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = buildHTML();
+  // Re-attach month picker change handler (it's on a new input element each render)
+  const mp = document.getElementById('monthPicker');
+  if (mp) mp.addEventListener('change', e => { state.selectedMonth = e.target.value; render(); });
+}
+
+function buildHTML() {
+  const s = state;
+  let body = '';
+
+  if (s.session) {
+    body = buildSession();
+  } else if (s.view === 'workout') {
+    body = buildStart();
+  } else if (s.view === 'history') {
+    body = buildHistory();
+  } else {
+    body = buildMonthly();
+  }
+
+  const tabs = s.session ? '' : `
+    <div class="tabs">
+      <button class="tab ${s.view==='workout'?'active':''}" data-action="tab" data-tab="workout">New Workout</button>
+      <button class="tab ${s.view==='history'?'active':''}" data-action="tab" data-tab="history">📅 History</button>
+      <button class="tab ${s.view==='monthly'?'active':''}" data-action="tab" data-tab="monthly">📈 Monthly</button>
+    </div>`;
+
+  return `<h1>🏀 Basketball Shooting Tracker</h1>${tabs}${body}`;
+}
+
+function buildStart() {
+  return `<div class="start-wrap"><button class="btn-primary" style="width:auto;padding:16px 32px;font-size:1.1rem" data-action="start">Start Today's Workout</button></div>`;
+}
+
+function buildSession() {
+  const s = state.session;
+
+  // Warmup
+  const warmupRows = s.warmup.map((item, i) => `
+    <div class="warmup-row">
+      <span>${item.name}</span>
+      <button class="check-btn ${item.done?'done':'todo'}" data-action="toggleWarmup" data-idx="${i}">${checkIcon(item.done)}</button>
+    </div>`).join('');
+
+  // Midrange drills
+  const midRows = s.midrange.map((d, i) => `
+    <div class="drill">
+      <div class="drill-header">
+        <span class="drill-name">${d.name}</span>
+        <span class="drill-stat">${d.makes}/${d.attempts} (${pct(d.makes, d.attempts)}%)</span>
+      </div>
+      <div class="drill-btns">
+        <button class="miss-btn" data-action="decr" data-section="midrange" data-idx="${i}">−</button>
+        <button class="make-btn" data-action="incr" data-section="midrange" data-idx="${i}">MAKE</button>
+      </div>
+    </div>`).join('');
+
+  // 3-point drills
+  const threeRows = s.threes.map((d, i) => `
+    <div class="drill">
+      <div class="drill-header">
+        <span class="drill-name">${d.name}</span>
+        <span class="drill-stat">${d.makes}/${d.attempts} (${pct(d.makes, d.attempts)}%)</span>
+      </div>
+      <div class="drill-btns">
+        <button class="miss-btn" data-action="decr" data-section="threes" data-idx="${i}">−</button>
+        <button class="make-btn" data-action="incr" data-section="threes" data-idx="${i}">MAKE</button>
+      </div>
+    </div>`).join('');
+
+  return `
+    <div class="card">
+      <h2>Warm-up</h2>
+      ${warmupRows}
+    </div>
+
+    <div class="card">
+      <h2>Midrange</h2>
+      ${midRows}
+      <div class="ft-row">
+        <span>${s.ft1.name}</span>
+        <button class="check-btn ${s.ft1.done?'done':'todo'}" data-action="toggleFT" data-key="ft1">${checkIcon(s.ft1.done)}</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>3-Pointers</h2>
+      ${threeRows}
+      <div class="ft-row">
+        <span>${s.ft2.name}</span>
+        <button class="check-btn ${s.ft2.done?'done':'todo'}" data-action="toggleFT" data-key="ft2">${checkIcon(s.ft2.done)}</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;margin-top:8px">
+      ${state.editingIndex !== null ? `<button class="btn-primary" style="background:#6b7280" data-action="cancelEdit">Cancel</button>` : ''}
+      <button class="btn-primary" style="margin-top:0" data-action="save">${state.editingIndex !== null ? 'Update Workout' : 'Save Workout'}</button>
+    </div>`;
+}
+
+function buildHistory() {
+  const exportBtn = state.history.length
+    ? `<button class="btn-export" data-action="exportCSV">⬇ Export to CSV</button>`
+    : '';
+  if (!state.history.length) {
+    return `<p class="empty-msg">No workouts logged yet.</p>`;
+  }
+  const items = state.history.map((w, i) => {
+    const mr = w.midrange.reduce((a, d) => ({ makes: a.makes + d.makes, attempts: a.attempts + d.attempts }), { makes: 0, attempts: 0 });
+    const tr = w.threes.reduce((a, d) => ({ makes: a.makes + d.makes, attempts: a.attempts + d.attempts }), { makes: 0, attempts: 0 });
+    return `
+      <div class="history-item">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div class="history-date" style="margin-bottom:0">${fmtDate(w.date)}</div>
+          <div style="display:flex;gap:8px">
+            <button class="history-action-btn edit-btn" data-action="editWorkout" data-idx="${i}">Edit</button>
+            <button class="history-action-btn delete-btn" data-action="deleteWorkout" data-idx="${i}">Delete</button>
+          </div>
+        </div>
+        <div class="history-grid">
+          <div><div class="history-label">Midrange</div><div class="history-val">${mr.makes}/${mr.attempts} (${pct(mr.makes, mr.attempts)}%)</div></div>
+          <div><div class="history-label">3-Pointers</div><div class="history-val">${tr.makes}/${tr.attempts} (${pct(tr.makes, tr.attempts)}%)</div></div>
+        </div>
+      </div>`;
+  }).join('');
+  return exportBtn + items;
+}
+
+function exportCSV() {
+  const headers = [
+    'Date',
+    'FT Line KD Makes', 'FT Line KD Attempts', 'FT Line KD %',
+    'Lateral Slide Makes', 'Lateral Slide Attempts', 'Lateral Slide %',
+    'Downhill Pull-ups Makes', 'Downhill Pull-ups Attempts', 'Downhill Pull-ups %',
+    'Total Midrange Makes', 'Total Midrange Attempts', 'Total Midrange %',
+    'Top of Key C&S Makes', 'Top of Key C&S Attempts', 'Top of Key C&S %',
+    'Wing 3s C&S Makes', 'Wing 3s C&S Attempts', 'Wing 3s C&S %',
+    'Dribble Pull-up 3s Makes', 'Dribble Pull-up 3s Attempts', 'Dribble Pull-up 3s %',
+    'Total 3PT Makes', 'Total 3PT Attempts', 'Total 3PT %'
+  ];
+
+  const rows = [...state.history].reverse().map(w => {
+    const mr = w.midrange.reduce((a, d) => ({ makes: a.makes + d.makes, attempts: a.attempts + d.attempts }), { makes: 0, attempts: 0 });
+    const tr = w.threes.reduce((a, d) => ({ makes: a.makes + d.makes, attempts: a.attempts + d.attempts }), { makes: 0, attempts: 0 });
+    const d = w.midrange;
+    const t = w.threes;
+    return [
+      fmtDate(w.date),
+      d[0].makes, d[0].attempts, pct(d[0].makes, d[0].attempts),
+      d[1].makes, d[1].attempts, pct(d[1].makes, d[1].attempts),
+      d[2].makes, d[2].attempts, pct(d[2].makes, d[2].attempts),
+      mr.makes, mr.attempts, pct(mr.makes, mr.attempts),
+      t[0].makes, t[0].attempts, pct(t[0].makes, t[0].attempts),
+      t[1].makes, t[1].attempts, pct(t[1].makes, t[1].attempts),
+      t[2].makes, t[2].attempts, pct(t[2].makes, t[2].attempts),
+      tr.makes, tr.attempts, pct(tr.makes, tr.attempts)
+    ].join(',');
+  });
+
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `shooting-tracker-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildMonthly() {
+  const m = state.selectedMonth;
+  const filtered = state.history.filter(w => w.date.startsWith(m));
+  const statsBlock = (() => {
+    if (!filtered.length) return `<p class="empty-msg">No workouts for this month.</p>`;
+    const mr = filtered.reduce((a, w) => {
+      w.midrange.forEach(d => { a.makes += d.makes; a.attempts += d.attempts; });
+      return a;
+    }, { makes: 0, attempts: 0 });
+    const tr = filtered.reduce((a, w) => {
+      w.threes.forEach(d => { a.makes += d.makes; a.attempts += d.attempts; });
+      return a;
+    }, { makes: 0, attempts: 0 });
+    return `
+      <div class="card"><h3>Total Workouts: ${filtered.length}</h3></div>
+      <div class="card">
+        <h3>Midrange Shooting</h3>
+        <div class="big-pct blue">${pct(mr.makes, mr.attempts)}%</div>
+        <div class="sub-stat">${mr.makes}/${mr.attempts} makes</div>
+      </div>
+      <div class="card">
+        <h3>3-Point Shooting</h3>
+        <div class="big-pct green">${pct(tr.makes, tr.attempts)}%</div>
+        <div class="sub-stat">${tr.makes}/${tr.attempts} makes</div>
+      </div>`;
+  })();
+
+  return `
+    <div class="month-picker">
+      <label>Select Month:</label>
+      <input type="month" value="${m}" id="monthPicker">
+    </div>
+    ${statsBlock}`;
+}
+
+// ─── Events (attached once at boot, not on every render) ─────────────────────
+function attachEvents() {
+  document.getElementById('app').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+
+    if (action === 'tab') { state.view = btn.dataset.tab; render(); }
+
+    else if (action === 'start') { state.session = TEMPLATE(); render(); }
+
+    else if (action === 'toggleWarmup') {
+      const i = +btn.dataset.idx;
+      state.session.warmup[i].done = !state.session.warmup[i].done;
+      render();
+    }
+
+    else if (action === 'toggleFT') {
+      const key = btn.dataset.key;
+      state.session[key].done = !state.session[key].done;
+      render();
+    }
+
+    else if (action === 'incr') {
+      const { section, idx } = btn.dataset;
+      const drill = state.session[section][+idx];
+      if (drill.makes < drill.attempts) drill.makes++;
+      render();
+    }
+
+    else if (action === 'decr') {
+      const { section, idx } = btn.dataset;
+      const drill = state.session[section][+idx];
+      if (drill.makes > 0) drill.makes--;
+      render();
+    }
+
+    else if (action === 'exportCSV') { exportCSV(); }
+
+    else if (action === 'editWorkout') {
+      const i = +btn.dataset.idx;
+      state.editingIndex = i;
+      state.session = JSON.parse(JSON.stringify(state.history[i]));
+      render();
+    }
+
+    else if (action === 'deleteWorkout') {
+      if (!confirm('Delete this workout? This cannot be undone.')) return;
+      const i = +btn.dataset.idx;
+      state.history.splice(i, 1);
+      saveHistory();
+      render();
+    }
+
+    else if (action === 'cancelEdit') {
+      state.session = null;
+      state.editingIndex = null;
+      state.view = 'history';
+      render();
+    }
+
+    else if (action === 'save') {
+      if (state.editingIndex !== null) {
+        state.history[state.editingIndex] = state.session;
+      } else {
+        state.history = [state.session, ...state.history];
+      }
+      state.history.sort((a, b) => new Date(b.date) - new Date(a.date));
+      saveHistory();
+      const wasEditing = state.editingIndex !== null;
+      state.session = null;
+      state.editingIndex = null;
+      state.view = wasEditing ? 'history' : 'workout';
+      render();
+      const flash = document.createElement('div');
+      flash.textContent = wasEditing ? '✅ Workout updated!' : '✅ Workout saved!';
+      flash.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#22c55e;color:#fff;padding:10px 24px;border-radius:8px;font-weight:700;z-index:999;box-shadow:0 2px 8px rgba(0,0,0,.2)';
+      document.body.appendChild(flash);
+      setTimeout(() => flash.remove(), 2000);
+    }
+  });
+}
+
+// ─── Boot ────────────────────────────────────────────────────────────────────
+loadHistory();
+render();        // build initial DOM first
+attachEvents();  // then attach listener once — works for all future renders too
+</script>
+</body>
+</html>
