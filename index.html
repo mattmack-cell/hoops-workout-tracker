@@ -112,17 +112,36 @@ let state = {
 };
 
 // ─── Persistence ─────────────────────────────────────────────────────────────
-function loadHistory() {
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbx3M-8-Y4oId7xXGltAih6oSsYVOlrKofz4ogcvLx3AiiG454hY3uYchuszhjkBmIJlqg/exec';
+
+async function loadHistory() {
+  // Try Sheets first, fall back to localStorage if offline
   try {
-    const raw = localStorage.getItem('basketballWorkouts');
-    if (raw) state.history = JSON.parse(raw);
-  } catch(e) {}
+    const res = await fetch(SHEET_URL);
+    const rows = await res.json();
+    state.history = rows.map(r => JSON.parse(r[0])).sort((a, b) => new Date(b.date) - new Date(a.date));
+    localStorage.setItem('basketballWorkouts', JSON.stringify(state.history));
+  } catch(e) {
+    try {
+      const raw = localStorage.getItem('basketballWorkouts');
+      if (raw) state.history = JSON.parse(raw);
+    } catch(e2) {}
+  }
+  render();
 }
 
 function saveHistory() {
   try {
     localStorage.setItem('basketballWorkouts', JSON.stringify(state.history));
   } catch(e) {}
+}
+
+function sheetPost(payload) {
+  fetch(SHEET_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: JSON.stringify(payload)
+  }).catch(() => {});
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -397,8 +416,10 @@ function attachEvents() {
     else if (action === 'deleteWorkout') {
       if (!confirm('Delete this workout? This cannot be undone.')) return;
       const i = +btn.dataset.idx;
+      const deleted = state.history[i];
       state.history.splice(i, 1);
       saveHistory();
+      sheetPost({ action: 'delete', workout: deleted });
       render();
     }
 
@@ -410,14 +431,16 @@ function attachEvents() {
     }
 
     else if (action === 'save') {
-      if (state.editingIndex !== null) {
+      const wasEditing = state.editingIndex !== null;
+      if (wasEditing) {
+        sheetPost({ action: 'update', workout: state.session });
         state.history[state.editingIndex] = state.session;
       } else {
+        sheetPost({ action: 'save', workout: state.session });
         state.history = [state.session, ...state.history];
       }
       state.history.sort((a, b) => new Date(b.date) - new Date(a.date));
       saveHistory();
-      const wasEditing = state.editingIndex !== null;
       state.session = null;
       state.editingIndex = null;
       state.view = wasEditing ? 'history' : 'workout';
@@ -432,9 +455,9 @@ function attachEvents() {
 }
 
 // ─── Boot ────────────────────────────────────────────────────────────────────
-loadHistory();
-render();        // build initial DOM first
-attachEvents();  // then attach listener once — works for all future renders too
+render();        // show loading state immediately
+attachEvents();  // attach listener once before async load completes
+loadHistory();   // async: fetches from Sheets, then re-renders with data
 </script>
 </body>
 </html>
