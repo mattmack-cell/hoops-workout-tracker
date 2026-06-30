@@ -67,6 +67,13 @@
 
     /* FT section inside drill card */
     .ft-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; margin-top: 16px; border-top: 1px solid #e5e7eb; }
+
+    /* History edit/delete buttons */
+    .history-action-btn { padding: 4px 12px; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    .edit-btn { background: #dbeafe; color: #1d4ed8; }
+    .edit-btn:hover { background: #bfdbfe; }
+    .delete-btn { background: #fee2e2; color: #b91c1c; }
+    .delete-btn:hover { background: #fecaca; }
   </style>
 </head>
 <body>
@@ -99,6 +106,7 @@ const TEMPLATE = () => ({
 let state = {
   view: 'workout',           // 'workout' | 'history' | 'monthly'
   session: null,             // null or TEMPLATE()
+  editingIndex: null,        // index in history being edited, or null
   history: [],
   selectedMonth: new Date().toISOString().slice(0, 7)
 };
@@ -230,7 +238,10 @@ function buildSession() {
       </div>
     </div>
 
-    <button class="btn-primary" data-action="save">Save Workout</button>`;
+    <div style="display:flex;gap:12px;margin-top:8px">
+      ${state.editingIndex !== null ? `<button class="btn-primary" style="background:#6b7280" data-action="cancelEdit">Cancel</button>` : ''}
+      <button class="btn-primary" style="margin-top:0" data-action="save">${state.editingIndex !== null ? 'Update Workout' : 'Save Workout'}</button>
+    </div>`;
 }
 
 function buildHistory() {
@@ -240,12 +251,18 @@ function buildHistory() {
   if (!state.history.length) {
     return `<p class="empty-msg">No workouts logged yet.</p>`;
   }
-  const items = state.history.map(w => {
+  const items = state.history.map((w, i) => {
     const mr = w.midrange.reduce((a, d) => ({ makes: a.makes + d.makes, attempts: a.attempts + d.attempts }), { makes: 0, attempts: 0 });
     const tr = w.threes.reduce((a, d) => ({ makes: a.makes + d.makes, attempts: a.attempts + d.attempts }), { makes: 0, attempts: 0 });
     return `
       <div class="history-item">
-        <div class="history-date">${fmtDate(w.date)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div class="history-date" style="margin-bottom:0">${fmtDate(w.date)}</div>
+          <div style="display:flex;gap:8px">
+            <button class="history-action-btn edit-btn" data-action="editWorkout" data-idx="${i}">Edit</button>
+            <button class="history-action-btn delete-btn" data-action="deleteWorkout" data-idx="${i}">Delete</button>
+          </div>
+        </div>
         <div class="history-grid">
           <div><div class="history-label">Midrange</div><div class="history-val">${mr.makes}/${mr.attempts} (${pct(mr.makes, mr.attempts)}%)</div></div>
           <div><div class="history-label">3-Pointers</div><div class="history-val">${tr.makes}/${tr.attempts} (${pct(tr.makes, tr.attempts)}%)</div></div>
@@ -370,15 +387,43 @@ function attachEvents() {
 
     else if (action === 'exportCSV') { exportCSV(); }
 
-    else if (action === 'save') {
-      state.history = [state.session, ...state.history].sort((a, b) => new Date(b.date) - new Date(a.date));
-      saveHistory();
-      state.session = null;
-      state.view = 'workout';
+    else if (action === 'editWorkout') {
+      const i = +btn.dataset.idx;
+      state.editingIndex = i;
+      state.session = JSON.parse(JSON.stringify(state.history[i]));
       render();
-      // Brief confirmation flash
+    }
+
+    else if (action === 'deleteWorkout') {
+      if (!confirm('Delete this workout? This cannot be undone.')) return;
+      const i = +btn.dataset.idx;
+      state.history.splice(i, 1);
+      saveHistory();
+      render();
+    }
+
+    else if (action === 'cancelEdit') {
+      state.session = null;
+      state.editingIndex = null;
+      state.view = 'history';
+      render();
+    }
+
+    else if (action === 'save') {
+      if (state.editingIndex !== null) {
+        state.history[state.editingIndex] = state.session;
+      } else {
+        state.history = [state.session, ...state.history];
+      }
+      state.history.sort((a, b) => new Date(b.date) - new Date(a.date));
+      saveHistory();
+      const wasEditing = state.editingIndex !== null;
+      state.session = null;
+      state.editingIndex = null;
+      state.view = wasEditing ? 'history' : 'workout';
+      render();
       const flash = document.createElement('div');
-      flash.textContent = '✅ Workout saved!';
+      flash.textContent = wasEditing ? '✅ Workout updated!' : '✅ Workout saved!';
       flash.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#22c55e;color:#fff;padding:10px 24px;border-radius:8px;font-weight:700;z-index:999;box-shadow:0 2px 8px rgba(0,0,0,.2)';
       document.body.appendChild(flash);
       setTimeout(() => flash.remove(), 2000);
