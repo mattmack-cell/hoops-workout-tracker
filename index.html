@@ -291,7 +291,7 @@ function exportCSV() {
     const d = w.midrange;
     const t = w.threes;
     return [
-      fmtDate(w.date),
+      `"${fmtDate(w.date)}"`,
       d[0].makes, d[0].attempts, pct(d[0].makes, d[0].attempts),
       d[1].makes, d[1].attempts, pct(d[1].makes, d[1].attempts),
       d[2].makes, d[2].attempts, pct(d[2].makes, d[2].attempts),
